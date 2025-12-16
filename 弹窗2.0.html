@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语录弹窗小游戏</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "微软雅黑", sans-serif;
+        }
+        body {
+            height: 100vh;
+            /* 初始背景：拍视频推荐纯黑/纯白，这里默认黑色，可自行改#fff白色 */
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 50px;
+            /* 背景过渡动画 */
+            transition: background-color 0.5s ease;
+        }
+        /* 配置面板样式 */
+        .config-panel {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 500px;
+            /* 面板默认显示，点击开始后隐藏 */
+            display: block;
+            z-index: 999;
+        }
+        /* 面板隐藏的类 */
+        .config-panel.hidden {
+            display: none;
+        }
+        /* 显示面板的按钮（隐藏后出现） */
+        .show-panel-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            z-index: 998;
+        }
+        .show-panel-btn.show {
+            display: block;
+        }
+        .config-item {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 100px;
+            resize: none;
+        }
+        button {
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        /* 弹窗通用样式 */
+        .popup {
+            position: absolute;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255,255,255,0.2); /* 黑色背景下阴影更明显 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 24px;
+            z-index: 9999;
+            cursor: move;
+            color: #000; /* 文字默认黑色，可改#fff白色 */
+        }
+        /* 初始弹窗样式 */
+        .init-popup {
+            width: 450px;
+            height: 180px;
+            background-color: #87CEEB;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+        }
+        .close-btn {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <!-- 配置面板：用户自定义内容 -->
+    <div class="config-panel" id="configPanel">
+        <div class="config-item">
+            <label for="initText">初始弹窗文字：</label>
+            <input type="text" id="initText" placeholder="输入初始弹窗显示的文字" value="傻逼作者傻逼文">
+        </div>
+        <div class="config-item">
+            <label for="customQuotes">自定义语录（每行一句）：</label>
+            <textarea id="customQuotes" placeholder="比如：
+为师知道，为师愿意
+从前种种，今日一并还你
+我和师尊的关系就像鱼和水">为师知道，为师愿意
+从前种种，今日一并还你
+我和师尊的关系就像鱼和水
+我没了师尊就死了，师尊没了我，还清净
+世人流传的故事已经结束
+我只为一人，别的一概不知
+这一次，无论你想去什么地方，为师都陪着
+即便为师出事，你也不会有任何不测
+我每一时、每一刻，脑子里想的都是师尊
+心魔皆因执念起</textarea>
+        </div>
+        <div class="config-item">
+            <label for="popupCount">弹窗数量：</label>
+            <input type="number" id="popupCount" value="50" min="1" max="200">
+        </div>
+        <!-- 新增：背景颜色选择 -->
+        <div class="config-item">
+            <label for="bgColor">背景颜色（拍视频推荐纯黑#000/纯白#fff）：</label>
+            <input type="color" id="bgColor" value="#000000">
+        </div>
+        <button id="startBtn">开始</button>
+    </div>
+
+    <!-- 显示面板的按钮（默认隐藏） -->
+    <button class="show-panel-btn" id="showPanelBtn">重新配置</button>
+
+    <script>
+        // 颜色列表（十六进制）
+        const COLORS = [
+            "#FFB6C1", "#87CEEB", "#90EE90", "#E6E6FA",
+            "#87CEFA", "#FFFFE0", "#DDA0DD", "#FF7F50"
+        ];
+
+        // 全局变量
+        let initPopup = null;
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // 获取DOM元素
+        const startBtn = document.getElementById('startBtn');
+        const initTextInput = document.getElementById('initText');
+        const customQuotesInput = document.getElementById('customQuotes');
+        const popupCountInput = document.getElementById('popupCount');
+        const bgColorInput = document.getElementById('bgColor');
+        const configPanel = document.getElementById('configPanel');
+        const showPanelBtn = document.getElementById('showPanelBtn');
+
+        // 初始化：点击开始按钮创建初始弹窗
+        startBtn.addEventListener('click', () => {
+            // 1. 隐藏配置面板
+            configPanel.classList.add('hidden');
+            // 2. 显示“重新配置”按钮
+            showPanelBtn.classList.add('show');
+            // 3. 设置用户选择的背景颜色
+            document.body.style.backgroundColor = bgColorInput.value;
+            // 4. 清除之前的所有弹窗
+            document.querySelectorAll('.popup').forEach(p => p.remove());
+
+            // 获取用户配置
+            const initText = initTextInput.value.trim() || "默认文字";
+            const quotes = customQuotesInput.value.trim().split('\n').filter(q => q);
+            const popupCount = parseInt(popupCountInput.value) || 50;
+
+            // 创建初始弹窗
+            createInitPopup(initText, quotes, popupCount);
+        });
+
+        // 点击“重新配置”按钮，显示面板
+        showPanelBtn.addEventListener('click', () => {
+            configPanel.classList.remove('hidden');
+            showPanelBtn.classList.remove('show');
+            // 恢复初始背景（可选）
+            // document.body.style.backgroundColor = "#000";
+        });
+
+        // 创建初始弹窗
+        function createInitPopup(initText, quotes, popupCount) {
+            initPopup = document.createElement('div');
+            initPopup.className = 'popup init-popup';
+            initPopup.innerHTML = `
+                <span class="close-btn">×</span>
+                <div>${initText}</div>
+            `;
+            document.body.appendChild(initPopup);
+
+            // 关闭按钮事件：批量创建语录弹窗
+            const closeBtn = initPopup.querySelector('.close-btn');
+            closeBtn.addEventListener('click', () => {
+                initPopup.remove();
+                createQuotePopups(quotes, popupCount);
+            });
+
+            // 让初始弹窗可拖动
+            makeDraggable(initPopup);
+        }
+
+        // 批量创建语录弹窗
+        function createQuotePopups(quotes, count) {
+            if (quotes.length === 0) {
+                alert('请至少输入一句语录！');
+                return;
+            }
+
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    createSingleQuotePopup(quotes);
+                }, i * 50); // 延迟50ms，渐变弹出
+            }
+        }
+
+        // 创建单个语录弹窗
+        function createSingleQuotePopup(quotes) {
+            // 随机选语录和颜色
+            const quote = quotes[Math.floor(Math.random() * quotes.length)];
+            const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+            // 创建弹窗元素
+            const popup = document.createElement('div');
+            popup.className = 'popup';
+            popup.style.width = '450px';
+            popup.style.height = '180px';
+            popup.style.backgroundColor = color;
+            popup.innerHTML = `<div>${quote}</div>`;
+
+            // 随机位置（避免超出屏幕）
+            const screenWidth = window.innerWidth - 450;
+            const screenHeight = window.innerHeight - 180;
+            const x = Math.floor(Math.random() * screenWidth);
+            const y = Math.floor(Math.random() * screenHeight);
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+
+            // 添加到页面
+            document.body.appendChild(popup);
+
+            // 让弹窗可拖动
+            makeDraggable(popup);
+
+            // 点击弹窗可关闭
+            popup.addEventListener('click', (e) => {
+                if (!isDragging) { // 避免拖动时误关闭
+                    popup.remove();
+                }
+            });
+        }
+
+        // 让元素可拖动
+        function makeDraggable(element) {
+            element.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                // 获取鼠标相对于元素的偏移量
+                dragOffsetX = e.clientX - element.getBoundingClientRect().left;
+                dragOffsetY = e.clientY - element.getBoundingClientRect().top;
+                // 提升层级
+                element.style.zIndex = 10001;
+                // 阻止默认行为
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    // 计算元素新位置
+                    const x = e.clientX - dragOffsetX;
+                    const y = e.clientY - dragOffsetY;
+                    element.style.left = `${x}px`;
+                    element.style.top = `${y}px`;
+                    element.style.transform = 'none'; // 取消初始的居中变换
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+    </script>
+</body>
+</html>
