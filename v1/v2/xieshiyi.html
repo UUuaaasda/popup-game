@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>语录弹窗小游戏</title>
+    <style>
+        /* 全局样式：响应式基础 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "微软雅黑", sans-serif;
+        }
+        body {
+            min-height: 100vh;
+            background-color: #000;
+            background-image: none;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 10px;
+            transition: background-color 0.5s ease, background-image 0.5s ease;
+        }
+        /* 配置面板：自适应宽度 */
+        .config-panel {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px; /* 电脑端最大宽度 */
+            z-index: 999;
+        }
+        .config-panel.hidden {
+            display: none;
+        }
+        /* 重新配置按钮：适配手机位置 */
+        .show-panel-btn, .share-btn {
+            position: fixed;
+            padding: 8px 15px;
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 998;
+            font-size: 14px;
+            display: none;
+        }
+        .show-panel-btn {
+            top: 10px;
+            right: 10px;
+        }
+        .share-btn {
+            top: 10px;
+            left: 10px;
+            background-color: #28a745;
+        }
+        .show-panel-btn.show, .share-btn.show {
+            display: block;
+        }
+        .config-item {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+            font-size: 15px;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            height: 80px;
+            resize: none;
+        }
+        button {
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        /* 背景图片上传样式 */
+        .upload-img {
+            padding: 8px;
+            border: 1px dashed #ddd;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .upload-img:hover {
+            background-color: #f5f5f5;
+        }
+        #imgUpload {
+            display: none;
+        }
+        .tip-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        /* 弹窗通用样式：响应式尺寸 */
+        .popup {
+            position: absolute;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 18px; /* 手机端字体缩小 */
+            z-index: 9999;
+            cursor: move;
+            color: #000;
+            /* 响应式尺寸：宽度占屏幕80%，最大450px */
+            width: 80%;
+            max-width: 450px;
+            height: auto;
+            min-height: 120px;
+        }
+        /* 初始弹窗样式 */
+        .init-popup {
+            background-color: #87CEEB;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+        }
+        .close-btn {
+            position: absolute;
+            top: 5px;
+            right: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            color: #000;
+        }
+        /* 解决手机端拖动兼容问题 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        /* 分享弹窗样式 */
+        .share-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+        }
+        .share-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .share-content input {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 14px;
+        }
+        .share-content button {
+            width: 48%;
+            display: inline-block;
+            margin: 0 1%;
+        }
+        .copy-btn {
+            background-color: #28a745;
+        }
+        .close-modal-btn {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <!-- 配置面板 -->
+    <div class="config-panel" id="configPanel">
+        <div class="config-item">
+            <label for="initText">初始弹窗文字：</label>
+            <input type="text" id="initText" placeholder="输入初始弹窗显示的文字" value="请叉掉这个弹窗">
+        </div>
+        <div class="config-item">
+            <label for="customQuotes">自定义语录（每行一句）：</label>
+            <textarea id="customQuotes" placeholder="比如：
+“愿与渡微仙尊结为道侣。”“固所愿也，不敢请耳。”
+幺幺，登仙阁惊鸿15年，我就开始喜欢你了，魔域的100年，我一直都在想你，想得快疯了。">"愿与渡微仙尊结为道侣。" "固所愿也，不敢请耳。"
+幺幺，登仙阁惊鸿15年，我就开始喜欢你了，魔域的100年，我一直都在想你，想得快疯了。
+千山风雪，送一人归来。
+谢识衣，答应我，今后不要为了任何人付出生命、放弃一切。哪怕是我。
+万事不悔，于是之后，入魔域不悔，碎无情道不悔，闭关百年不悔，娶燕卿为道侣不悔，为一个魔种流亡天涯不悔，放血救障城不悔，死于沧妄海不悔。
+当时九天神佛看着我吻你，你管这叫恨？！我失魂落魄走了那么多遍四十九步，就只是为了一个仇人？
+谢识衣，别看，别回头，我们走。
+言卿，我现在忽然觉得，或许我当初真的没猜错。心动是真的，暧昧是真的。我没猜错，你喜欢我。
+南斗神官四十一步，步步染血。不悔，不悔。谢识衣，你是真的不悔吗？
+谢识衣，原来我的重生，只是因为我想见你。我本就为你而来。</textarea>
+        </div>
+        <div class="config-item">
+            <label for="popupCount">弹窗数量：</label>
+            <input type="number" id="popupCount" value="30" min="1" max="100">
+        </div>
+        <div class="config-item">
+            <label for="bgColor">背景颜色（优先于背景图）：</label>
+            <input type="color" id="bgColor" value="#000000">
+        </div>
+        <div class="config-item">
+            <label>背景图片上传（支持JPG/PNG/GIF）：</label>
+            <div class="upload-img" onclick="document.getElementById('imgUpload').click()">
+                点击上传背景图片
+            </div>
+            <input type="file" id="imgUpload" accept="image/jpeg,image/png,image/gif">
+            <p class="tip-text">仅支持JPG、PNG、GIF格式，大小建议不超过5MB</p>
+        </div>
+        <button id="startBtn">开始</button>
+    </div>
+
+    <!-- 功能按钮 -->
+    <button class="show-panel-btn" id="showPanelBtn">重新配置</button>
+    <button class="share-btn" id="shareBtn">生成分享链接</button>
+
+    <!-- 分享弹窗 -->
+    <div class="share-modal" id="shareModal">
+        <div class="share-content">
+            <h3>你的专属分享链接</h3>
+            <input type="text" id="shareUrlInput" readonly>
+            <button class="copy-btn" id="copyBtn">复制链接</button>
+            <button class="close-modal-btn" id="closeModalBtn">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        // 颜色列表
+        const COLORS = [
+            "#FFB6C1", "#87CEEB", "#90EE90", "#E6E6FA",
+            "#87CEFA", "#FFFFE0", "#DDA0DD", "#FF7F50"
+        ];
+
+        // 全局变量
+        let initPopup = null;
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let bgImageUrl = null;
+        // 存储用户配置
+        let userConfig = {
+            initText: "",
+            customQuotes: "",
+            popupCount: 30,
+            bgColor: "#000000"
+        };
+
+        // 获取DOM元素
+        const startBtn = document.getElementById('startBtn');
+        const initTextInput = document.getElementById('initText');
+        const customQuotesInput = document.getElementById('customQuotes');
+        const popupCountInput = document.getElementById('popupCount');
+        const bgColorInput = document.getElementById('bgColor');
+        const imgUpload = document.getElementById('imgUpload');
+        const configPanel = document.getElementById('configPanel');
+        const showPanelBtn = document.getElementById('showPanelBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const shareModal = document.getElementById('shareModal');
+        const shareUrlInput = document.getElementById('shareUrlInput');
+        const copyBtn = document.getElementById('copyBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+
+        // 页面加载时，解析URL参数并填充配置
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('initText')) {
+                // 解码URL参数
+                initTextInput.value = decodeURIComponent(urlParams.get('initText'));
+                customQuotesInput.value = decodeURIComponent(urlParams.get('customQuotes'));
+                popupCountInput.value = urlParams.get('popupCount');
+                bgColorInput.value = urlParams.get('bgColor');
+            }
+        };
+
+        // 监听背景图片上传
+        imgUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 验证文件格式
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('仅支持JPG、PNG、GIF格式的图片！');
+                return;
+            }
+
+            // 生成图片URL
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                bgImageUrl = e.target.result;
+                alert('背景图片上传成功！点击开始即可生效');
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 开始按钮点击事件
+        startBtn.addEventListener('click', () => {
+            // 保存用户配置
+            userConfig = {
+                initText: initTextInput.value.trim(),
+                customQuotes: customQuotesInput.value.trim(),
+                popupCount: popupCountInput.value,
+                bgColor: bgColorInput.value
+            };
+
+            // 隐藏面板，显示功能按钮
+            configPanel.classList.add('hidden');
+            showPanelBtn.classList.add('show');
+            shareBtn.classList.add('show');
+
+            // 设置背景
+            document.body.style.backgroundColor = bgColorInput.value;
+            if (bgImageUrl) {
+                document.body.style.backgroundImage = `url(${bgImageUrl})`;
+            } else {
+                document.body.style.backgroundImage = 'none';
+            }
+
+            // 清除旧弹窗
+            document.querySelectorAll('.popup').forEach(p => p.remove());
+
+            // 获取用户配置
+            const initText = userConfig.initText || "默认文字";
+            const quotes = userConfig.customQuotes.split('\n').filter(q => q);
+            const popupCount = parseInt(userConfig.popupCount) || 30;
+
+            // 创建初始弹窗
+            createInitPopup(initText, quotes, popupCount);
+        });
+
+        // 重新配置按钮
+        showPanelBtn.addEventListener('click', () => {
+            configPanel.classList.remove('hidden');
+            showPanelBtn.classList.remove('show');
+            shareBtn.classList.remove('show');
+        });
+
+        // 生成分享链接按钮
+        shareBtn.addEventListener('click', () => {
+            // 构建URL参数
+            const urlParams = new URLSearchParams();
+            urlParams.append('initText', encodeURIComponent(userConfig.initText));
+            urlParams.append('customQuotes', encodeURIComponent(userConfig.customQuotes));
+            urlParams.append('popupCount', userConfig.popupCount);
+            urlParams.append('bgColor', userConfig.bgColor);
+
+            // 生成分享链接（当前页面URL + 参数）
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+            shareUrlInput.value = shareUrl;
+
+            // 显示分享弹窗
+            shareModal.style.display = 'flex';
+        });
+
+        // 复制链接按钮
+        copyBtn.addEventListener('click', () => {
+            shareUrlInput.select();
+            document.execCommand('copy');
+            alert('分享链接已复制到剪贴板！');
+        });
+
+        // 关闭分享弹窗
+        closeModalBtn.addEventListener('click', () => {
+            shareModal.style.display = 'none';
+        });
+
+        // 创建初始弹窗
+        function createInitPopup(initText, quotes, popupCount) {
+            initPopup = document.createElement('div');
+            initPopup.className = 'popup init-popup';
+            initPopup.innerHTML = `
+                <span class="close-btn">×</span>
+                <div>${initText}</div>
+            `;
+            document.body.appendChild(initPopup);
+
+            // 关闭按钮事件
+            const closeBtn = initPopup.querySelector('.close-btn');
+            closeBtn.addEventListener('click', () => {
+                initPopup.remove();
+                createQuotePopups(quotes, popupCount);
+            });
+
+            // 可拖动（兼容电脑鼠标+手机触摸）
+            makeDraggable(initPopup);
+        }
+
+        // 批量创建语录弹窗
+        function createQuotePopups(quotes, count) {
+            if (quotes.length === 0) {
+                alert('请至少输入一句语录！');
+                return;
+            }
+
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    createSingleQuotePopup(quotes);
+                }, i * 50);
+            }
+        }
+
+        // 创建单个语录弹窗
+        function createSingleQuotePopup(quotes) {
+            const quote = quotes[Math.floor(Math.random() * quotes.length)];
+            const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+            const popup = document.createElement('div');
+            popup.className = 'popup';
+            popup.style.backgroundColor = color;
+            popup.innerHTML = `<div>${quote}</div>`;
+
+            // 随机位置：适配手机屏幕
+            const screenWidth = window.innerWidth - popup.offsetWidth;
+            const screenHeight = window.innerHeight - popup.offsetHeight;
+            const x = Math.floor(Math.random() * screenWidth);
+            const y = Math.floor(Math.random() * screenHeight);
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+
+            document.body.appendChild(popup);
+            makeDraggable(popup);
+
+            // 点击关闭
+            popup.addEventListener('click', (e) => {
+                if (!isDragging) {
+                    popup.remove();
+                }
+            });
+        }
+
+        // 可拖动函数（兼容电脑鼠标+手机触摸）
+        function makeDraggable(element) {
+            // 电脑鼠标事件
+            element.addEventListener('mousedown', startDrag);
+            // 手机触摸事件
+            element.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                startDrag({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+            });
+
+            // 开始拖动
+            function startDrag(e) {
+                isDragging = true;
+                const rect = element.getBoundingClientRect();
+                dragOffsetX = e.clientX - rect.left;
+                dragOffsetY = e.clientY - rect.top;
+                element.style.zIndex = 10001;
+            }
+
+            // 拖动中
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                drag({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+            });
+
+            // 拖动函数
+            function drag(e) {
+                if (isDragging) {
+                    const x = e.clientX - dragOffsetX;
+                    const y = e.clientY - dragOffsetY;
+                    element.style.left = `${x}px`;
+                    element.style.top = `${y}px`;
+                    element.style.transform = 'none';
+                }
+            }
+
+            // 结束拖动
+            document.addEventListener('mouseup', () => isDragging = false);
+            document.addEventListener('touchend', () => isDragging = false);
+        }
+    </script>
+</body>
+</html>
